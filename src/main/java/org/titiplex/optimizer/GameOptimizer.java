@@ -3,10 +3,7 @@ package org.titiplex.optimizer;
 import org.titiplex.city.Building;
 import org.titiplex.city.City;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class GameOptimizer {
     private static final Random rnd = new Random(777L);
@@ -38,6 +35,47 @@ public class GameOptimizer {
         return penalty;
     }
 
+    private static Set<City.Coordinates> connectedRoads(City city) {
+        var visited = new HashSet<City.Coordinates>();
+        var queue = new ArrayDeque<City.Coordinates>();
+
+        City.Coordinates start = city.start;
+        visited.add(start);
+        queue.add(start);
+
+        while (!queue.isEmpty()) {
+            var c = queue.removeFirst();
+            for (var n : city.neighbors4(c)) {
+                var b = city.coords_to_building.get(n);
+                if (b != null && b.chars().type == Building.Type.ROAD && !visited.contains(n)) {
+                    visited.add(n);
+                    queue.addLast(n);
+                }
+            }
+        }
+        return visited;
+    }
+
+    /**
+     * Penalizes roads that are not connected to the start point.
+     *
+     * @param city the city to evaluate.
+     * @return a penalty score (malus)
+     */
+    private static double roadPenalty(City city, Set<City.Coordinates> connectedRoads) {
+        double penalty = 0.0;
+        for (var entry : city.coords_to_building.entrySet()) {
+            var coord = entry.getKey();
+            var b = entry.getValue();
+            if (b.chars().type == Building.Type.ROAD
+                    && !coord.equals(city.start)
+                    && !connectedRoads.contains(coord)) {
+                penalty += 5_000_000.0;
+            }
+        }
+        return penalty;
+    }
+
     public static double score(City city) {
 
         if (city == null) throw new IllegalArgumentException("City is null");
@@ -50,6 +88,9 @@ public class GameOptimizer {
         List<City.Coordinates> schoolCells = new ArrayList<>();
         List<City.Coordinates> trainCells = new ArrayList<>();
         List<City.Coordinates> factoryCells = new ArrayList<>();
+
+        // roads
+        Set<City.Coordinates> connectedRoads = connectedRoads(city);
 
         for (var e : city.coords_to_building.entrySet()) {
             var k = e.getValue().chars().type.getKind();
@@ -70,7 +111,37 @@ public class GameOptimizer {
 
         double score = 0;
 
+        // hard constraint on the number of residencies
+        int targetRes = (city.getWidth() * city.getHeight()) / 8;
+        int currentRes = resCells.size();
+
+        if (currentRes == 0) {
+            // city without inhabitants -> impossible
+            return -1e9;
+        }
+
+        // a little flexible
+        if (currentRes < targetRes) {
+            score -= (targetRes - currentRes) * 100.0;
+        } else if (currentRes > targetRes) {
+            score -= (currentRes - targetRes) * 20.0;
+        }
+
         for (var r : resCells) {
+
+            // check if residency is connected to the start point through road network
+            boolean connectedToEntry = false;
+            for (City.Coordinates n : city.neighbors4(r)) {
+                if (connectedRoads.contains(n)) {
+                    connectedToEntry = true;
+                    break;
+                }
+            }
+            if (!connectedToEntry) {
+                score -= 50.0;
+                continue; // not counting bonus, just penalties, which is problematic
+            }
+
             // check if covered by factory pollution radius
             boolean coveredFactory = false;
             for (City.Coordinates s : factoryCells) {
@@ -186,6 +257,7 @@ public class GameOptimizer {
 
         // constraints penalty
         score -= penalty(city);
+        score -= roadPenalty(city, connectedRoads);
 
         return score;
     }
@@ -243,7 +315,7 @@ public class GameOptimizer {
 
     public static City optimizeCity(int iterations, int width, int height) {
         City current = City.randomInitialCity(width, height, rnd);
-        current.printCity();
+//        current.printCity();
         double currentScore = score(current);
 
         City best = current.deepCopy();
