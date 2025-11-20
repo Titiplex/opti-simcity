@@ -120,7 +120,7 @@ public final class City {
 
     public void rmBuilding(Coordinates c) {
         if (!inside(c) || !hasBuilding(c) || !coords_to_building.containsKey(c)) return;
-        var temp =  coords_to_building.get(c).coords();
+        var temp = coords_to_building.get(c).coords();
         for (var t : temp) {
             coords_to_building.remove(t);
             coords_to_building.put(t, new Building(Building.Characteristics.VOID));
@@ -244,5 +244,18 @@ public final class City {
     @Override
     public int hashCode() {
         return Objects.hash(coords_to_building, getWidth(), getHeight(), start, Arrays.deepHashCode(grid));
+    }
+
+    public Building buildingAt(City.Coordinates c) {
+        return this.coords_to_building.get(c);
+    }
+
+    public void removeResidentialBuilding(Building bRes) {
+        if (bRes == null || bRes.chars().type != Building.Type.RESIDENTIAL) return;
+        // copy to avoid modification
+        var cells = new ArrayList<>(bRes.coords());
+        for (City.Coordinates c : cells) {
+            this.rmBuilding(c);
+        }
     }
 }
