@@ -34,21 +34,28 @@ public final class City {
         this.grid = new Coordinates[height][width];
         this.coords_to_building = new HashMap<>();
 
-        // entry point for road
         int yRoad = height / 2;
-        var entryRoad = new Building(Building.Characteristics.ROAD);
-        var entryCoords = new Coordinates(0, yRoad);
-        this.coords_to_building.put(entryCoords, entryRoad);
-        entryRoad.addCoord(entryCoords);
-        this.start = entryCoords;
+
+        // only one building for the whole road
+        var mainRoad = new Building(Building.Characteristics.ROAD);
+        this.start = new Coordinates(0, yRoad);
+
+        // horizontal road in the middle
+        for (int x = 0; x < width; x++) {
+            Coordinates c = new Coordinates(x, yRoad);
+            grid[yRoad][x] = c;
+            coords_to_building.put(c, mainRoad);
+            mainRoad.addCoord(c);
+        }
 
         for (int y = 0; y < height; y++) {
+            if (y == yRoad) continue; // déjà fait
             for (int x = 0; x < width; x++) {
-                if (x == 0 && y == yRoad) continue;
-                grid[y][x] = new Coordinates(x, y);
+                Coordinates c = new Coordinates(x, y);
+                grid[y][x] = c;
                 var newB = new Building(Building.Characteristics.VOID);
-                coords_to_building.put(grid[y][x], newB);
-                newB.addCoord(grid[y][x]);
+                coords_to_building.put(c, newB);
+                newB.addCoord(c);
             }
         }
     }

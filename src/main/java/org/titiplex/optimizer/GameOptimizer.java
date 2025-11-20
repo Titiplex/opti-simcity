@@ -62,29 +62,25 @@ public class GameOptimizer {
         while (changed) {
             changed = false;
             Set<City.Coordinates> connected = connectedRoads(city);
-            List<City.Coordinates> resCells = new ArrayList<>();
-            for (var e : city.coords_to_building.entrySet()) {
-                if (e.getValue().chars().type == Building.Type.RESIDENTIAL) {
-                    resCells.add(e.getKey());
-                }
-            }
 
-            for (City.Coordinates r : resCells) {
-                // already adjacent to a connected road ?
-                boolean ok = false;
-                for (City.Coordinates n : city.neighbors4(r)) {
-                    if (connected.contains(n)) {
-                        ok = true;
-                        break;
-                    }
-                }
-                if (ok) continue;
+            // distinct residential buildings
+            List<Building> resBuildings = city.coords_to_building.values().stream()
+                    .filter(b -> b.chars().type == Building.Type.RESIDENTIAL)
+                    .distinct()
+                    .toList();
 
-                // BFS from residence to connected road
+            for (Building bRes : resBuildings) {
+                if (isResidentialBuildingWellConnected(bRes, city, connected)) {
+                    continue;
+                }
+
+                // we take an external point for the BFS
+                City.Coordinates startFrom = bRes.coords().iterator().next();
+
                 Map<City.Coordinates, City.Coordinates> parent = new HashMap<>();
                 ArrayDeque<City.Coordinates> q = new ArrayDeque<>();
-                q.add(r);
-                parent.put(r, null);
+                q.add(startFrom);
+                parent.put(startFrom, null);
 
                 City.Coordinates target = null;
 
@@ -96,8 +92,6 @@ public class GameOptimizer {
                         if (b == null) continue;
 
                         Building.Type t = b.chars().type;
-
-                        // always pass on road or void
                         if (t != Building.Type.VOID && t != Building.Type.ROAD) continue;
 
                         parent.put(nb, cur);
@@ -111,13 +105,13 @@ public class GameOptimizer {
                 }
 
                 if (target == null) {
-                    // no road found, we forsake that residency
+                    // no good path, we forsake the building
                     continue;
                 }
 
-                // go from r to target and transform void into road
+                // go uproad and transform void into road cells
                 City.Coordinates cur = parent.get(target);
-                while (cur != null && !cur.equals(r)) {
+                while (cur != null && !cur.equals(startFrom)) {
                     Building b = city.coords_to_building.get(cur);
                     if (b.chars().type == Building.Type.VOID) {
                         city.setBuilding(cur, new Building(Building.Characteristics.ROAD));
@@ -127,6 +121,48 @@ public class GameOptimizer {
                 }
             }
         }
+    }
+
+    private static boolean isResidentialBuildingWellConnected(
+            Building b,
+            City city,
+            Set<City.Coordinates> connectedRoads
+    ) {
+        if (b.chars().type != Building.Type.RESIDENTIAL) return true; // on ne pénalise que les RES
+
+        if (b.coords().isEmpty()) return false;
+
+        int xmin = Integer.MAX_VALUE, xmax = Integer.MIN_VALUE;
+        int ymin = Integer.MAX_VALUE, ymax = Integer.MIN_VALUE;
+
+        for (City.Coordinates c : b.coords()) {
+            xmin = Math.min(xmin, c.x());
+            xmax = Math.max(xmax, c.x());
+            ymin = Math.min(ymin, c.y());
+            ymax = Math.max(ymax, c.y());
+        }
+
+        int north = 0, south = 0, west = 0, east = 0;
+
+        for (City.Coordinates c : b.coords()) {
+            boolean isNorth = (c.y() == ymin);
+            boolean isSouth = (c.y() == ymax);
+            boolean isWest = (c.x() == xmin);
+            boolean isEast = (c.x() == xmax);
+
+            for (City.Coordinates n : city.neighbors4(c)) {
+                if (!connectedRoads.contains(n)) continue;
+
+                // same cell can have multiple side
+                if (isNorth) north++;
+                if (isSouth) south++;
+                if (isWest) west++;
+                if (isEast) east++;
+            }
+        }
+
+        // condition : at least 2 cells are adjacent to a road
+        return north >= 2 || south >= 2 || west >= 2 || east >= 2;
     }
 
     /**
@@ -182,6 +218,19 @@ public class GameOptimizer {
             }
         }
 
+        // list of residential distinct buildings
+        Set<Building> resBuildings = new HashSet<>();
+        for (City.Coordinates r : resCells) {
+            resBuildings.add(city.coords_to_building.get(r));
+        }
+
+        // is the building well connected ?
+        Map<Building, Boolean> resConnected = new HashMap<>();
+        for (Building b : resBuildings) {
+            boolean ok = isResidentialBuildingWellConnected(b, city, connectedRoads);
+            resConnected.put(b, ok);
+        }
+
         double score = 0;
 
         // hard constraint on the number of residencies
@@ -204,16 +253,12 @@ public class GameOptimizer {
         for (var r : resCells) {
 
             // check if residency is connected to the start point through road network
-            boolean connectedToEntry = false;
-            for (City.Coordinates n : city.neighbors4(r)) {
-                if (connectedRoads.contains(n)) {
-                    connectedToEntry = true;
-                    break;
-                }
-            }
+            Building bRes = city.coords_to_building.get(r);
+            boolean connectedToEntry = Boolean.TRUE.equals(resConnected.get(bRes));
             if (!connectedToEntry) {
+                // penalising only once per cell
                 score -= 50.0;
-                continue; // not counting bonus, just penalties, which is problematic
+                continue;
             }
 
             // check if covered by factory pollution radius
