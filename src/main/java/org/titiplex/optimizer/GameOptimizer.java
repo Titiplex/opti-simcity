@@ -56,6 +56,79 @@ public class GameOptimizer {
         return visited;
     }
 
+    private static void connectAllResidencesWithRoads(City city) {
+        boolean changed = true;
+
+        while (changed) {
+            changed = false;
+            Set<City.Coordinates> connected = connectedRoads(city);
+            List<City.Coordinates> resCells = new ArrayList<>();
+            for (var e : city.coords_to_building.entrySet()) {
+                if (e.getValue().chars().type == Building.Type.RESIDENTIAL) {
+                    resCells.add(e.getKey());
+                }
+            }
+
+            for (City.Coordinates r : resCells) {
+                // already adjacent to a connected road ?
+                boolean ok = false;
+                for (City.Coordinates n : city.neighbors4(r)) {
+                    if (connected.contains(n)) {
+                        ok = true;
+                        break;
+                    }
+                }
+                if (ok) continue;
+
+                // BFS from residence to connected road
+                Map<City.Coordinates, City.Coordinates> parent = new HashMap<>();
+                ArrayDeque<City.Coordinates> q = new ArrayDeque<>();
+                q.add(r);
+                parent.put(r, null);
+
+                City.Coordinates target = null;
+
+                while (!q.isEmpty() && target == null) {
+                    City.Coordinates cur = q.removeFirst();
+                    for (City.Coordinates nb : city.neighbors4(cur)) {
+                        if (parent.containsKey(nb)) continue;
+                        Building b = city.coords_to_building.get(nb);
+                        if (b == null) continue;
+
+                        Building.Type t = b.chars().type;
+
+                        // always pass on road or void
+                        if (t != Building.Type.VOID && t != Building.Type.ROAD) continue;
+
+                        parent.put(nb, cur);
+
+                        if (connected.contains(nb)) {
+                            target = nb;
+                            break;
+                        }
+                        q.addLast(nb);
+                    }
+                }
+
+                if (target == null) {
+                    // no road found, we forsake that residency
+                    continue;
+                }
+
+                // go from r to target and transform void into road
+                City.Coordinates cur = parent.get(target);
+                while (cur != null && !cur.equals(r)) {
+                    Building b = city.coords_to_building.get(cur);
+                    if (b.chars().type == Building.Type.VOID) {
+                        city.setBuilding(cur, new Building(Building.Characteristics.ROAD));
+                        changed = true;
+                    }
+                    cur = parent.get(cur);
+                }
+            }
+        }
+    }
+
     /**
      * Penalizes roads that are not connected to the start point.
      *
@@ -122,10 +195,11 @@ public class GameOptimizer {
 
         // a little flexible
         if (currentRes < targetRes) {
-            score -= (targetRes - currentRes) * 100.0;
-        } else if (currentRes > targetRes) {
-            score -= (currentRes - targetRes) * 20.0;
+            score -= (targetRes - currentRes) * 10.0;
         }
+//        else if (currentRes > targetRes) {
+//            score -= (currentRes - targetRes) * 20.0;
+//        }
 
         for (var r : resCells) {
 
@@ -262,9 +336,40 @@ public class GameOptimizer {
         return score;
     }
 
+    private static void extendRoadFromNetwork(City city) {
+        // fetch already connected roads
+        Set<City.Coordinates> connected = connectedRoads(city);
+        if (connected.isEmpty()) return;
+
+        // choose one connected road as starting point (random)
+        List<City.Coordinates> roadList = new ArrayList<>(connected);
+        City.Coordinates base = roadList.get(rnd.nextInt(roadList.size()));
+
+        // try to add a road on a void neighbor
+        List<City.Coordinates> neighbors = city.neighbors4(base);
+        Collections.shuffle(neighbors, rnd);
+        for (City.Coordinates n : neighbors) {
+            Building b = city.coords_to_building.get(n);
+            if (b != null && b.chars().type == Building.Type.VOID) {
+                city.setBuilding(n, new Building(Building.Characteristics.ROAD));
+                break;
+            }
+        }
+    }
+
     // random mutations
     public static City randomMutation(City city) {
         City nc = city.deepCopy();
+
+        double p = rnd.nextDouble();
+
+        // 40% of mut are extensions of road
+        if (p < 0.4) {
+            extendRoadFromNetwork(nc);
+            return nc;
+        }
+
+        // 60% of other mutations : don't touch at roads or res
         String action = switch (rnd.nextInt(3)) {
             case 0 -> "add";
             case 1 -> "remove";
@@ -273,32 +378,42 @@ public class GameOptimizer {
 
         List<City.Coordinates> coords = nc.allCoords();
         City.Coordinates c = coords.get(rnd.nextInt(coords.size()));
+        Building b = nc.coords_to_building.get(c);
 
         if ("remove".equals(action)) {
-            if (nc.coords_to_building.containsKey(c)) {
+            // don't remove res of entry route
+            if (b != null
+                    && b.chars().type != Building.Type.RESIDENTIAL
+                    && !(b.chars().type == Building.Type.ROAD && c.equals(nc.start))) {
                 nc.rmBuilding(c);
             }
         } else if ("add".equals(action)) {
-            if (nc.coords_to_building.get(c).chars().type == Building.Type.VOID) {
+            if (b.chars().type == Building.Type.VOID) {
+                // no random res or road
                 Building.Characteristics[] values = Building.Characteristics.values();
-                nc.setBuilding(c, new Building(values[rnd.nextInt(values.length)]));
+                Building.Characteristics chosen;
+                do {
+                    chosen = values[rnd.nextInt(values.length)];
+                } while (chosen.type == Building.Type.RESIDENTIAL
+                        || chosen == Building.Characteristics.ROAD);
+
+                nc.setBuilding(c, new Building(chosen));
             }
         } else { // move
-            Building b = nc.coords_to_building.get(c);
-            if (b != null && b.chars().type != Building.Type.VOID) {
-                // save old coords to rollback if necessary
-                var oldCoords = new HashSet<>(b.coords());
+            if (b != null
+                    && b.chars().type != Building.Type.VOID
+                    && b.chars().type != Building.Type.RESIDENTIAL
+                    && !(b.chars().type == Building.Type.ROAD && c.equals(nc.start))) {
 
-                // del the building
+                var oldCoords = new HashSet<>(b.coords());
                 nc.rmBuilding(c);
 
                 City.Coordinates c2 = coords.get(rnd.nextInt(coords.size()));
                 if (nc.coords_to_building.get(c2).chars().type == Building.Type.VOID) {
-                    // we recreate a clean building with equal chars
                     Building moved = new Building(b.chars());
                     boolean ok = nc.setBuilding(c2, moved);
                     if (!ok) {
-                        // rollback to be safe
+                        // rollback
                         for (var t : oldCoords) {
                             nc.coords_to_building.put(t, b);
                         }
@@ -338,6 +453,8 @@ public class GameOptimizer {
 //            best.printCity();
         }
 
+        // post treatment to ensure that the city is connected
+        connectAllResidencesWithRoads(best);
         System.out.println("Best score: " + bestScore);
         return best;
     }
