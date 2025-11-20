@@ -496,11 +496,36 @@ public class GameOptimizer {
                 }
             }
 //            best.printCity();
+            printProgressBar(it + 1, iterations, 100);
         }
 
         // post treatment to ensure that the city is connected
         connectAllResidencesWithRoads(best);
+        System.out.println();
         System.out.println("Best score: " + bestScore);
         return best;
+    }
+
+    private static void printProgressBar(int currentProgress, int totalProgress, int barLength) {
+        double percentage = (double) currentProgress / totalProgress;
+        int filledLength = (int) (percentage * barLength);
+        int emptyLength = barLength - filledLength;
+
+        // Build the progress bar string
+        StringBuilder bar = new StringBuilder();
+        bar.append("[");
+        for (int i = 0; i < filledLength; i++) {
+            bar.append("="); // Filled part of the bar
+        }
+        for (int i = 0; i < emptyLength; i++) {
+            bar.append(" "); // Empty part of the bar
+        }
+        bar.append("]");
+
+        // Add percentage
+        String percentageText = String.format(" %3d%%", (int) (percentage * 100));
+
+        // Print to console using carriage return to overwrite the line
+        System.out.print("\r" + bar + percentageText);
     }
 }
