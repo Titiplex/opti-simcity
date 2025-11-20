@@ -115,6 +115,24 @@ public record Building(Characteristics chars, HashSet<City.Coordinates> coords) 
         }
     }
 
+    public double getCost() {
+        // TODO adjust to real cost in simoleons
+        return switch (this.chars()) {
+            case RESIDENTIAL -> 50.0;
+            case ROAD -> 1.0;
+            case RAIL -> 2.0;
+            case SMALL_POLICE_STATION, SMALL_FIRE_STATION, SMALL_HEALTH_CLINIC -> 80.0;
+            case BASIC_POLICE_STATION, BASIC_FIRE_STATION, BASIC_HEALTH_CLINIC -> 150.0;
+            case HOSPITAL, POLICE_PRECINCT, DELUXE_FIRE_STATION, MEDIUM_RAILWAY_STATION -> 300.0;
+            case SMALL_RAILWAY_STATION, HIGH_SCHOOL, COMMUNITY_COLLEGE -> 200.0;
+            case CENTRAL_RAILWAY_STATION -> 500.0;
+            case DPT_EDUCATION, NURSERY_SCHOOL, GRADE_SCHOOL, PUBLIC_LIBRAIRY -> 120.0;
+            case UNIVERSITY -> 400.0;
+            case SMALL_FOUNTAIN_PARK -> 40.0;
+            case VOID -> 0.0;
+        };
+    }
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof Building(Characteristics chars1, HashSet<City.Coordinates> coords1))) return false;
