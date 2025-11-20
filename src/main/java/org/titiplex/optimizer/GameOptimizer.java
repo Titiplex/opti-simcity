@@ -481,12 +481,24 @@ public class GameOptimizer {
         City best = current.deepCopy();
         double bestScore = currentScore;
 
+        double T0 = 1000.0;   // to adjust
+        double alpha = 3.0;   // bigger = quicker cooldown
+
         for (int it = 0; it < iterations; it++) {
+            double t = (double) it / (double) iterations;
+            double T = T0 * Math.exp(-alpha * t);
             City candidate = randomMutation(current);
             double sNew = score(candidate);
+            double delta = sNew - currentScore;
 
-            // hill climbing, maybe accept worse possibility
-            if (sNew > currentScore || rnd.nextDouble() < 0.01) {
+            boolean accept;
+            if (delta >= 0) accept = true;
+            else {
+                double prob = Math.exp(delta / Math.max(T, 1e-16));
+                accept = rnd.nextDouble() < prob;
+            }
+
+            if (accept) {
                 current = candidate;
                 currentScore = sNew;
 
