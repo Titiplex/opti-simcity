@@ -8,6 +8,16 @@ import java.util.*;
 public class GameOptimizer {
     static final Random rnd = new Random(777L);
 
+    private static final Map<Building.Type, int[]> TYPE_BOUNDS = Map.of(
+            Building.Type.FIRE_STATION,    new int[]{ 2, 10 },
+            Building.Type.POLICE_STATION,  new int[]{ 2, 10 },
+            Building.Type.HEALTH_CLINIC,   new int[]{ 2, 10 },
+            Building.Type.SCHOOL,          new int[]{ 1, 6 },
+            Building.Type.PARK,            new int[]{ 4, 40 },
+            Building.Type.RAILWAY_STATION, new int[]{ 0, 3 }
+            // etc.  {min, max}
+    );
+
     public static double penalty(City city) {
         if (city == null) throw new IllegalArgumentException("City is null");
         double penalty = 0;
@@ -46,6 +56,32 @@ public class GameOptimizer {
             if (!ok_rail) penalty += 5.0;
         }
         return penalty;
+    }
+
+    private static double buildingCountPenalty(City city) {
+        Map<Building.Type, Integer> typeCount = new EnumMap<>(Building.Type.class);
+        for (Building b : city.coords_to_building.values().stream().distinct().toList()) {
+            typeCount.merge(b.chars().type, 1, Integer::sum);
+        }
+
+        double pen = 0.0;
+
+        for (var entry : TYPE_BOUNDS.entrySet()) {
+            Building.Type t = entry.getKey();
+            int[] bounds = entry.getValue();
+            int min = bounds[0];
+            int max = bounds[1];
+            int n = typeCount.getOrDefault(t, 0);
+
+            if (n < min) {
+                pen += (min - n) * 100.0;
+            }
+            if (n > max) {
+                pen += (n - max) * 10.0;
+            }
+        }
+
+        return pen;
     }
 
     static Set<City.Coordinates> connectedRoads(City city) {
@@ -358,6 +394,7 @@ public class GameOptimizer {
         score -= penalty(city);
         score -= roadPenalty(city, connectedRoads);
         score -= railPenalty(city);
+        score -= buildingCountPenalty(city);
 
         return score;
     }
