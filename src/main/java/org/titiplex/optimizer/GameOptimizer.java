@@ -56,6 +56,40 @@ public class GameOptimizer {
         return visited;
     }
 
+    private static Set<City.Coordinates> railsConnectedToStations(City city) {
+        List<City.Coordinates> stationCells = new ArrayList<>();
+        for (var e : city.coords_to_building.entrySet()) {
+            if (e.getValue().chars().type == Building.Type.RAILWAY_STATION) {
+                stationCells.add(e.getKey());
+            }
+        }
+
+        Set<City.Coordinates> visited = new HashSet<>();
+        ArrayDeque<City.Coordinates> q = new ArrayDeque<>();
+
+        // BFS from all stations
+        for (City.Coordinates s : stationCells) {
+            visited.add(s);
+            q.add(s);
+        }
+
+        while (!q.isEmpty()) {
+            City.Coordinates cur = q.removeFirst();
+            for (City.Coordinates nb : city.neighbors4(cur)) {
+                Building b = city.coords_to_building.get(nb);
+                if (b == null) continue;
+
+                // rails and maybe stations
+                if ((b.chars().type == Building.Type.RAIL
+                        || b.chars().type == Building.Type.RAILWAY_STATION)
+                        && visited.add(nb)) {
+                    q.addLast(nb);
+                }
+            }
+        }
+        return visited;
+    }
+
     /**
      * Penalizes roads that are not connected to the start point.
      *
@@ -71,6 +105,40 @@ public class GameOptimizer {
                     && !coord.equals(city.start)
                     && !connectedRoads.contains(coord)) {
                 penalty += 5_000_000.0;
+            }
+        }
+        return penalty;
+    }
+
+    private static double railPenalty(City city) {
+        double penalty = 0.0;
+        Set<City.Coordinates> railComponent = railsConnectedToStations(city);
+
+        // penalty to orphan rails
+        for (var e : city.coords_to_building.entrySet()) {
+            City.Coordinates c = e.getKey();
+            Building b = e.getValue();
+            if (b.chars().type == Building.Type.RAIL && !railComponent.contains(c)) {
+                penalty += 50_000.0;
+            }
+        }
+
+        // penalty to stations without adjacent rails
+        for (var e : city.coords_to_building.entrySet()) {
+            City.Coordinates c = e.getKey();
+            Building b = e.getValue();
+            if (b.chars().type == Building.Type.RAILWAY_STATION) {
+                boolean hasRailNeighbour = false;
+                for (City.Coordinates nb : city.neighbors4(c)) {
+                    Building nbB = city.coords_to_building.get(nb);
+                    if (nbB != null && nbB.chars().type == Building.Type.RAIL) {
+                        hasRailNeighbour = true;
+                        break;
+                    }
+                }
+                if (!hasRailNeighbour) {
+                    penalty += 2000.0;
+                }
             }
         }
         return penalty;
@@ -276,6 +344,7 @@ public class GameOptimizer {
         // constraints penalty
         score -= penalty(city);
         score -= roadPenalty(city, connectedRoads);
+        score -= railPenalty(city);
 
         return score;
     }
