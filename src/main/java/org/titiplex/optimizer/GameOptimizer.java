@@ -11,7 +11,11 @@ public class GameOptimizer {
     public static double penalty(City city) {
         if (city == null) throw new IllegalArgumentException("City is null");
         double penalty = 0;
+        Set<City.Coordinates> goodRails = railsConnectedToStations(city);
+        Set<City.Coordinates> connectedRoads = connectedRoads(city);
+
         for (var b : city.coords_to_building.values().stream().distinct().toList()) {
+            if (b.coords().isEmpty()) continue;
             if (Building.sameChars(b, new Building(Building.Characteristics.ROAD)) && b.coords().contains(city.start))
                 continue;
             boolean ok_road = false;
@@ -19,13 +23,22 @@ public class GameOptimizer {
             for (var c : b.coords()) {
                 for (var n : city.neighbors4(c)) {
                     Building nb = city.coords_to_building.get(n);
-                    if (nb != null) {
-                        if (b.chars().isNextToRoad && city.coords_to_building.get(n).chars().type == Building.Type.ROAD) {
+                    if (nb == null) continue;
+                    if (b.chars().isNextToRoad) {
+                        if (nb.chars().type == Building.Type.ROAD &&
+                                connectedRoads.contains(n)) {
                             ok_road = true;
-                        } else if (!b.chars().isNextToRoad) ok_road = true;
-                        if (b.chars().isNextToRail && city.coords_to_building.get(n).chars().type == Building.Type.RAIL) {
+                        }
+                    } else {
+                        ok_road = true;
+                    }
+                    if (b.chars().isNextToRail) {
+                        if (nb.chars().type == Building.Type.RAIL &&
+                                goodRails.contains(n)) {
                             ok_rail = true;
-                        } else if (!b.chars().isNextToRail) ok_rail = true;
+                        }
+                    } else {
+                        ok_rail = true;
                     }
                 }
             }
