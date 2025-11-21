@@ -425,7 +425,7 @@ class ResidentialOptimizer {
 
                 Building res = new Building(Building.Characteristics.RESIDENTIAL);
                 boolean ok = city.setBuilding(n, res);
-                if (ok) return; // on en place juste un
+                if (ok) return;
             }
         }
     }

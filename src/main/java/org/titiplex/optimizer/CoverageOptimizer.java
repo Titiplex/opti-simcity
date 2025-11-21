@@ -57,7 +57,7 @@ class CoverageOptimizer {
 
         // delete null service
         Building worst = null;
-        int bestScore = Integer.MAX_VALUE; // plus petit = pire
+        int bestScore = Integer.MAX_VALUE;
         for (Building s : services) {
             int covered = countCoveredResidencesForService(s, resCells);
             if (covered < bestScore) {
