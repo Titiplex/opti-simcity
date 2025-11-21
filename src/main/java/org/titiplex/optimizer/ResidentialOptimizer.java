@@ -203,7 +203,7 @@ class ResidentialOptimizer {
                         if (b == null) continue;
 
                         Building.Type t = b.chars().type;
-                        if (t != Building.Type.VOID && t != Building.Type.ROAD) continue;
+                        if (t != Building.Type.VOID && t != Building.Type.ROAD && t != Building.Type.CROSSING) continue;
 
                         parent.put(nb, cur);
 

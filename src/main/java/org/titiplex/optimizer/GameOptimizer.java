@@ -9,12 +9,12 @@ public class GameOptimizer {
     static final Random rnd = new Random(777L);
 
     private static final Map<Building.Type, int[]> TYPE_BOUNDS = Map.of(
-            Building.Type.FIRE_STATION,    new int[]{ 2, 10 },
-            Building.Type.POLICE_STATION,  new int[]{ 2, 10 },
-            Building.Type.HEALTH_CLINIC,   new int[]{ 2, 10 },
-            Building.Type.SCHOOL,          new int[]{ 1, 6 },
-            Building.Type.PARK,            new int[]{ 4, 40 },
-            Building.Type.RAILWAY_STATION, new int[]{ 0, 3 }
+            Building.Type.FIRE_STATION, new int[]{2, 10},
+            Building.Type.POLICE_STATION, new int[]{2, 10},
+            Building.Type.HEALTH_CLINIC, new int[]{2, 10},
+            Building.Type.SCHOOL, new int[]{1, 6},
+            Building.Type.PARK, new int[]{4, 40},
+            Building.Type.RAILWAY_STATION, new int[]{0, 3}
             // etc.  {min, max}
     );
 
@@ -34,8 +34,9 @@ public class GameOptimizer {
                 for (var n : city.neighbors4(c)) {
                     Building nb = city.coords_to_building.get(n);
                     if (nb == null) continue;
+                    Building.Type nt = nb.chars().type;
                     if (b.chars().isNextToRoad) {
-                        if (nb.chars().type == Building.Type.ROAD &&
+                        if ((nt == Building.Type.ROAD || nt == Building.Type.CROSSING) &&
                                 connectedRoads.contains(n)) {
                             ok_road = true;
                         }
@@ -43,7 +44,7 @@ public class GameOptimizer {
                         ok_road = true;
                     }
                     if (b.chars().isNextToRail) {
-                        if (nb.chars().type == Building.Type.RAIL &&
+                        if ((nt == Building.Type.RAIL || nt == Building.Type.CROSSING) &&
                                 goodRails.contains(n)) {
                             ok_rail = true;
                         }
@@ -96,7 +97,7 @@ public class GameOptimizer {
             var c = queue.removeFirst();
             for (var n : city.neighbors4(c)) {
                 var b = city.coords_to_building.get(n);
-                if (b != null && b.chars().type == Building.Type.ROAD && !visited.contains(n)) {
+                if (b != null && (b.chars().type == Building.Type.ROAD || b.chars().type == Building.Type.CROSSING) && !visited.contains(n)) {
                     visited.add(n);
                     queue.addLast(n);
                 }
@@ -129,8 +130,10 @@ public class GameOptimizer {
                 if (b == null) continue;
 
                 // rails and maybe stations
-                if ((b.chars().type == Building.Type.RAIL
-                        || b.chars().type == Building.Type.RAILWAY_STATION)
+                Building.Type t = b.chars().type;
+                if ((t== Building.Type.RAIL
+                        || t == Building.Type.RAILWAY_STATION
+                        || t == Building.Type.CROSSING)
                         && visited.add(nb)) {
                     q.addLast(nb);
                 }
@@ -150,7 +153,7 @@ public class GameOptimizer {
         for (var entry : city.coords_to_building.entrySet()) {
             var coord = entry.getKey();
             var b = entry.getValue();
-            if (b.chars().type == Building.Type.ROAD
+            if ((b.chars().type == Building.Type.ROAD || b.chars().type == Building.Type.CROSSING)
                     && !coord.equals(city.start)
                     && !connectedRoads.contains(coord)) {
                 penalty += 5_000_000.0;
@@ -180,13 +183,15 @@ public class GameOptimizer {
                 boolean hasRailNeighbour = false;
                 for (City.Coordinates nb : city.neighbors4(c)) {
                     Building nbB = city.coords_to_building.get(nb);
-                    if (nbB != null && nbB.chars().type == Building.Type.RAIL) {
+                    if (nbB == null) continue;
+                    Building.Type t = nbB.chars().type;
+                    if (t == Building.Type.RAIL || t == Building.Type.CROSSING) {
                         hasRailNeighbour = true;
                         break;
                     }
                 }
                 if (!hasRailNeighbour) {
-                    penalty += 2000.0;
+                    penalty += 5_000_000.0;
                 }
             }
         }
