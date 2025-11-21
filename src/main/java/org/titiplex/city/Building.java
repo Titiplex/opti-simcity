@@ -30,6 +30,7 @@ public record Building(Characteristics chars, HashSet<City.Coordinates> coords) 
         RESIDENTIAL(Kind.RES),
         ROAD(Kind.TRANSIT),
         RAIL(Kind.TRANSIT),
+        CROSSING(Kind.TRANSIT),
         POLICE_STATION(Kind.POLICE),
         FIRE_STATION(Kind.FIRE),
         HEALTH_CLINIC(Kind.HEALTH),
@@ -55,6 +56,7 @@ public record Building(Characteristics chars, HashSet<City.Coordinates> coords) 
         RESIDENTIAL(Type.RESIDENTIAL, 2, 2, 0, false, true, false),
         ROAD(Type.ROAD, 1, 1, 0, false, true, false),
         RAIL(Type.RAIL, 1, 1, 0, false, false, true),
+        CROSSING(Type.CROSSING, 1, 1, 0, false, true, true),
 
         // SERVICES
         SMALL_POLICE_STATION(Type.POLICE_STATION, 1, 1, 6, 8, false, true, false),
@@ -119,8 +121,7 @@ public record Building(Characteristics chars, HashSet<City.Coordinates> coords) 
         // TODO adjust to real cost in simoleons
         return switch (this.chars()) {
             case RESIDENTIAL -> 50.0;
-            case ROAD -> 1.0;
-            case RAIL -> 2.0;
+            case ROAD, RAIL, CROSSING -> 1.0;
             case SMALL_POLICE_STATION, SMALL_FIRE_STATION, SMALL_HEALTH_CLINIC -> 80.0;
             case BASIC_POLICE_STATION, BASIC_FIRE_STATION, BASIC_HEALTH_CLINIC -> 150.0;
             case HOSPITAL, POLICE_PRECINCT, DELUXE_FIRE_STATION, MEDIUM_RAILWAY_STATION -> 300.0;
