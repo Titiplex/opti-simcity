@@ -246,22 +246,7 @@ class ResidentialOptimizer {
 
         Set<City.Coordinates> connectedRoads = GameOptimizer.connectedRoads(city);
 
-        for (var e : city.coords_to_building.entrySet()) {
-            var k = e.getValue().chars().type.getKind();
-            var c = e.getKey();
-            switch (k) {
-                case RES -> resCells.add(c);
-                case POLICE -> policeCells.add(c);
-                case HEALTH -> healthCells.add(c);
-                case PARK -> parkCells.add(c);
-                case EDUCATION -> schoolCells.add(c);
-                case TRANSIT -> trainCells.add(c);
-                case FACTORY -> factoryCells.add(c);
-                case FIRE -> fireCells.add(c);
-                default -> {
-                }
-            }
-        }
+        GameOptimizer.fillCells(city, resCells, fireCells, policeCells, healthCells, parkCells, schoolCells, trainCells, factoryCells);
 
         if (resCells.isEmpty()) return null;
 
@@ -362,22 +347,7 @@ class ResidentialOptimizer {
 
         Set<City.Coordinates> connectedRoads = GameOptimizer.connectedRoads(city);
 
-        for (var e : city.coords_to_building.entrySet()) {
-            var k = e.getValue().chars().type.getKind();
-            var c = e.getKey();
-            switch (k) {
-                case RES -> resCells.add(c);
-                case POLICE -> policeCells.add(c);
-                case HEALTH -> healthCells.add(c);
-                case PARK -> parkCells.add(c);
-                case EDUCATION -> schoolCells.add(c);
-                case TRANSIT -> trainCells.add(c);
-                case FACTORY -> factoryCells.add(c);
-                case FIRE -> fireCells.add(c);
-                default -> {
-                }
-            }
-        }
+        GameOptimizer.fillCells(city, resCells, fireCells, policeCells, healthCells, parkCells, schoolCells, trainCells, factoryCells);
 
         boolean connectedToEntry = isResidentialBuildingWellConnected(bRes, city, connectedRoads);
 

@@ -9,12 +9,12 @@ public class GameOptimizer {
     static final Random rnd = new Random(777L);
 
     private static final Map<Building.Type, int[]> TYPE_BOUNDS = Map.of(
-            Building.Type.FIRE_STATION, new int[]{2, 10},
-            Building.Type.POLICE_STATION, new int[]{2, 10},
-            Building.Type.HEALTH_CLINIC, new int[]{2, 10},
-            Building.Type.SCHOOL, new int[]{1, 6},
+            Building.Type.FIRE_STATION, new int[]{1, 4},
+            Building.Type.POLICE_STATION, new int[]{1, 4},
+            Building.Type.HEALTH_CLINIC, new int[]{1, 4},
+            Building.Type.SCHOOL, new int[]{1, 10},
             Building.Type.PARK, new int[]{4, 40},
-            Building.Type.RAILWAY_STATION, new int[]{0, 3}
+            Building.Type.RAILWAY_STATION, new int[]{2, 5}
             // etc.  {min, max}
     );
 
@@ -78,7 +78,7 @@ public class GameOptimizer {
                 pen += (min - n) * 100.0;
             }
             if (n > max) {
-                pen += (n - max) * 10.0;
+                pen += (n - max) * 200.0;
             }
         }
 
@@ -131,7 +131,7 @@ public class GameOptimizer {
 
                 // rails and maybe stations
                 Building.Type t = b.chars().type;
-                if ((t== Building.Type.RAIL
+                if ((t == Building.Type.RAIL
                         || t == Building.Type.RAILWAY_STATION
                         || t == Building.Type.CROSSING)
                         && visited.add(nb)) {
@@ -171,7 +171,7 @@ public class GameOptimizer {
             City.Coordinates c = e.getKey();
             Building b = e.getValue();
             if (b.chars().type == Building.Type.RAIL && !railComponent.contains(c)) {
-                penalty += 50_000.0;
+                penalty += 500.0;
             }
         }
 
@@ -191,7 +191,7 @@ public class GameOptimizer {
                     }
                 }
                 if (!hasRailNeighbour) {
-                    penalty += 5_000_000.0;
+                    penalty += 5_000.0;
                 }
             }
         }
@@ -214,22 +214,7 @@ public class GameOptimizer {
         // roads
         Set<City.Coordinates> connectedRoads = connectedRoads(city);
 
-        for (var e : city.coords_to_building.entrySet()) {
-            var k = e.getValue().chars().type.getKind();
-            var c = e.getKey();
-            switch (k) {
-                case RES -> resCells.add(c);
-                case POLICE -> policeCells.add(c);
-                case HEALTH -> healthCells.add(c);
-                case PARK -> parkCells.add(c);
-                case EDUCATION -> schoolCells.add(c);
-                case TRANSIT -> trainCells.add(c);
-                case FACTORY -> factoryCells.add(c);
-                case FIRE -> fireCells.add(c);
-                default -> {
-                }
-            }
-        }
+        fillCells(city, resCells, fireCells, policeCells, healthCells, parkCells, schoolCells, trainCells, factoryCells);
 
         // list of residential distinct buildings
         Set<Building> resBuildings = new HashSet<>();
@@ -435,6 +420,9 @@ public class GameOptimizer {
         if (p < 0.2) {
             extendRoadFromNetwork(nc);
             return nc;
+        } else if (p < 0.22) {
+            addRailStationMutation(nc);
+            return nc;
         }
 
         // 50% improve local worse residency
@@ -510,6 +498,39 @@ public class GameOptimizer {
             }
         }
         return nc;
+    }
+
+    private static void addRailStationMutation(City city) {
+        List<City.Coordinates> roads = new ArrayList<>();
+        for (var e : city.coords_to_building.entrySet()) {
+            if (e.getValue().chars().type == Building.Type.ROAD) {
+                roads.add(e.getKey());
+            }
+        }
+        if (roads.isEmpty()) return;
+
+        City.Coordinates road = roads.get(rnd.nextInt(roads.size()));
+        List<City.Coordinates> nbs = city.neighbors4(road);
+        Collections.shuffle(nbs, rnd);
+        City.Coordinates stationCoord = null;
+        for (City.Coordinates nb : nbs) {
+            if (city.coords_to_building.get(nb).chars().type == Building.Type.VOID) {
+                stationCoord = nb;
+                break;
+            }
+        }
+        if (stationCoord == null) return;
+        Building station = new Building(Building.Characteristics.SMALL_RAILWAY_STATION);
+        if (!city.setBuilding(stationCoord, station)) return;
+
+        List<City.Coordinates> nbs2 = city.neighbors4(stationCoord);
+        Collections.shuffle(nbs2, rnd);
+        for (City.Coordinates nb : nbs2) {
+            if (city.coords_to_building.get(nb).chars() == Building.Characteristics.VOID) {
+                city.setBuilding(nb, new Building(Building.Characteristics.RAIL));
+                break;
+            }
+        }
     }
 
     // optimisation
@@ -589,22 +610,7 @@ public class GameOptimizer {
 
         Set<City.Coordinates> connectedRoads = connectedRoads(city);
 
-        for (var e : city.coords_to_building.entrySet()) {
-            var k = e.getValue().chars().type.getKind();
-            var c = e.getKey();
-            switch (k) {
-                case RES -> resCells.add(c);
-                case POLICE -> policeCells.add(c);
-                case HEALTH -> healthCells.add(c);
-                case PARK -> parkCells.add(c);
-                case EDUCATION -> schoolCells.add(c);
-                case TRANSIT -> trainCells.add(c);
-                case FACTORY -> factoryCells.add(c);
-                case FIRE -> fireCells.add(c);
-                default -> {
-                }
-            }
-        }
+        fillCells(city, resCells, fireCells, policeCells, healthCells, parkCells, schoolCells, trainCells, factoryCells);
 
         // distinct res buildings
         Set<Building> resBuildings = new HashSet<>();
@@ -653,5 +659,36 @@ public class GameOptimizer {
             System.out.println("  " + e.getKey() + " : " + e.getValue());
         }
         System.out.println("=====================");
+    }
+
+    static void fillCells(
+            City city,
+            List<City.Coordinates> resCells,
+            List<City.Coordinates> fireCells,
+            List<City.Coordinates> policeCells,
+            List<City.Coordinates> healthCells,
+            List<City.Coordinates> parkCells,
+            List<City.Coordinates> schoolCells,
+            List<City.Coordinates> trainCells,
+            List<City.Coordinates> factoryCells
+    ) {
+        for (var e : city.coords_to_building.entrySet()) {
+            Building.Type t = e.getValue().chars().type;
+            City.Coordinates c = e.getKey();
+
+            switch (t) {
+                case RESIDENTIAL -> resCells.add(c);
+                case FIRE_STATION -> fireCells.add(c);
+                case POLICE_STATION -> policeCells.add(c);
+                case HEALTH_CLINIC -> healthCells.add(c);
+                case PARK -> parkCells.add(c);
+                case SCHOOL -> schoolCells.add(c);
+                case FACTORY -> factoryCells.add(c);
+                case RAILWAY_STATION -> trainCells.add(c);
+                default -> {
+                    // ROAD, RAIL, CROSSING, VOID, etc.
+                }
+            }
+        }
     }
 }

@@ -205,28 +205,50 @@ public final class City {
             StringBuilder sb = new StringBuilder();
             for (int x = 0; x < this.getWidth(); x++) {
                 Coordinates c = new Coordinates(x, y);
-                Building t = this.coords_to_building.get(c);
-                char ch = ' ';
-                if (t.chars() == Building.Characteristics.VOID) {
+                Building b = this.coords_to_building.get(c);
+                char ch;
+
+                if (b.chars() == Building.Characteristics.VOID) {
                     ch = '.';
                 } else {
-                    switch (t.chars().type) {
+                    switch (b.chars().type) {
                         case ROAD -> ch = '#';
                         case RAIL -> ch = '=';
+                        case CROSSING -> ch = '+';
                         default -> {
-                            switch (t.chars().type.getKind()) {
-                                case PARK -> ch = 'p';
-                                case POLICE -> ch = 'P';
-                                case HEALTH -> ch = 'H';
-                                case EDUCATION -> ch = 'E';
+                            switch (b.chars().type.getKind()) {
+                                case PARK -> ch = 'P';
+                                case POLICE -> ch = 'p'; // police
+                                case HEALTH -> ch = 'h';
+                                case EDUCATION -> ch = 'e';
                                 case FACTORY -> ch = 'F';
-                                case TRANSIT -> ch = 'T';
+                                case TRANSIT -> ch = 't';
                                 case FIRE -> ch = 'f';
                                 case RES -> ch = 'r';
-                                default -> ch = 'X';
+                                default -> ch = '?';
                             }
                         }
                     }
+                }
+
+                boolean isBoundary = false;
+
+                if (b.chars() != Building.Characteristics.VOID) {
+                    int xmin = Integer.MAX_VALUE, xmax = Integer.MIN_VALUE;
+                    int ymin = Integer.MAX_VALUE, ymax = Integer.MIN_VALUE;
+
+                    for (Coordinates cc : b.coords()) {
+                        if (cc.x() < xmin) xmin = cc.x();
+                        if (cc.x() > xmax) xmax = cc.x();
+                        if (cc.y() < ymin) ymin = cc.y();
+                        if (cc.y() > ymax) ymax = cc.y();
+                    }
+                    if (c.x() == xmin || c.x() == xmax || c.y() == ymin || c.y() == ymax) {
+                        isBoundary = true;
+                    }
+                }
+                if (Character.isLetter(ch)) {
+                    ch = isBoundary ? Character.toUpperCase(ch) : Character.toLowerCase(ch);
                 }
                 sb.append(ch).append(' ');
             }
@@ -234,6 +256,7 @@ public final class City {
         }
         System.out.println();
     }
+
 
     @Override
     public boolean equals(Object o) {
